@@ -199,7 +199,7 @@ int main(){
 	double alpha;  // Non-dimensional Kinematic viscosity
 	int M;  // Number of nodes
 	int N;
-	double tol;  // error tolerance
+	double tol;  // normalized error tolerance
 	string mode;  // set to "bb": bounce-back, "ns": no-slip
 	bool init;  // whether to initialize f with feq
 
@@ -208,7 +208,7 @@ int main(){
 	alpha = 0.04;
 	M = 200;
 	N = M;
-	tol = 5e-4;
+	tol = 1e-10;
 	mode = "ns";
 	init = 0;
 
@@ -243,11 +243,12 @@ int main(){
 	cout << "Omega: " << omega << '\n';
 	cout << "Ma: " << u0 * pow(3, 0.5) << '\n';\
 	cout << "BC: " << mode << '\n';
+	cout << "Tol: " << tol << '\n';
 	cout << "Init: " << init << "\n\n";
 
 	int count = 0;
-	double error = 10.;  // latest del(sum v^2)- to determine convergence
-	double ers0 = 0.;  // previous sum v^2
+	double error = 10.;  // latest del(sum v^2)/(MN)- to determine convergence
+	double ers0 = 0.;  // previous sum(v^2)/(MN)
 	vector<double> errors;
 
 	while(error>tol or count<50){
@@ -263,10 +264,12 @@ int main(){
 
 		++count;
 
-		double ers = 0.;  // current sum v^2
+		double ers = 0.;  // current sum(v^2)/(MN)
 		for(int i=0; i<nx; ++i)
 			for(int j=0; j<ny; ++j)
 				ers += u[i][j]*u[i][j] + v[i][j]*v[i][j];
+
+		ers /= (M*N);
 
 		error = abs(ers-ers0);
 		ers0 = ers;
