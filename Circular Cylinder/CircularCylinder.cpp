@@ -1,3 +1,4 @@
+#include "SolidBoundary.h"
 #include<iostream>
 #include<fstream>
 #include<iterator>
@@ -34,7 +35,6 @@ vector<vector<vector<double>>> collision(
 				// Lattice Boltzmann Equation- in place update				
 				feq[k][i][j] = rho[i][j]*w[k]*(1. + 3.*t2 + 4.5*t2*t2 - 1.5*t1);
 				f[k][i][j] = (1.-omega)*f[k][i][j] + omega*feq[k][i][j];
-
 			}
 		}
 	return f;
@@ -67,79 +67,91 @@ vector<vector<vector<double>>> stream(vector<vector<vector<double>>>& f){
 	return f;
 }
 
-vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<double>>>& f, float u0, string mode){
+vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<double>>>& f, float u0, const vector<vector<double>>& rho){
 
 	// West boundary
-	for(int j=0; j<ny; ++j){
-
-		if(mode == "bb"){
-			f[1][0][j] = f[3][0][j];
-			f[5][0][j] = f[7][0][j];
-			f[8][0][j] = f[6][0][j];
-		}
-		else if(mode == "ns"){
-			f[1][0][j] = f[3][0][j];
-			f[5][0][j] = f[7][0][j] - 0.5*(f[2][0][j] - f[4][0][j]);
-			f[8][0][j] = f[6][0][j] + 0.5*(f[2][0][j] - f[4][0][j]);
-		}
+	for(int j=1; j<ny-1; ++j){
+		f[1][0][j] = f[3][0][j] + 2.*rho[0][j]*u0/3.;
+		f[5][0][j] = f[7][0][j] - 0.5*(f[2][0][j]-f[4][0][j]) + rho[0][j]*u0/6.;
+		f[8][0][j] = f[6][0][j] + 0.5*(f[2][0][j]-f[4][0][j]) + rho[0][j]*u0/6.;
 	}
 	
 	// East boundary
 	for(int j=0; j<ny; ++j){
 
-		if(mode == "bb"){
-			f[3][nx-1][j] = f[1][nx-1][j];
-			f[7][nx-1][j] = f[5][nx-1][j];
-			f[6][nx-1][j] = f[8][nx-1][j];
-		}
-		else if(mode == "ns"){
-			f[3][nx-1][j] = f[1][nx-1][j];
-			f[7][nx-1][j] = f[5][nx-1][j] + 0.5*(f[2][nx-1][j]-f[4][nx-1][j]);
-			f[6][nx-1][j] = f[8][nx-1][j] - 0.5*(f[2][nx-1][j]-f[4][nx-1][j]);
-		}
+		f[3][nx-1][j] = f[3][nx-2][j];
+		f[7][nx-1][j] = f[7][nx-2][j];
+		f[6][nx-1][j] = f[6][nx-2][j];
 	}
 
 	// South boundary
 	for(int i=0; i<nx; ++i){
 
-		if(mode == "bb"){
-			f[2][i][0] = f[4][i][0];
-			f[5][i][0] = f[7][i][0];
-			f[6][i][0] = f[8][i][0];
-		}
-		else if(mode == "ns"){
-			f[2][i][0] = f[4][i][0];
-			f[5][i][0] = f[7][i][0] - 0.5*(f[1][i][0]-f[3][i][0]);
-			f[6][i][0] = f[8][i][0] + 0.5*(f[1][i][0]-f[3][i][0]);
-		}
+		f[2][i][0] = f[4][i][0];
+		f[5][i][0] = f[7][i][0];
+		f[6][i][0] = f[8][i][0];
 	}
 
 	// North boundary
-	for(int i=1; i<nx-1; ++i){
-	// for(int i=0; i<nx; ++i){
-		double rhon = f[0][i][ny-1] + f[1][i][ny-1] + f[3][i][ny-1] + 2.*(f[2][i][ny-1] + f[5][i][ny-1] + f[6][i][ny-1]);
+	for(int i=0; i<nx; ++i){
 
-		if(mode == "bb"){
-			f[4][i][ny-1] = f[2][i][ny-1];
-			f[7][i][ny-1] = f[5][i][ny-1] - rhon*u0/6.;
-			f[8][i][ny-1] = f[6][i][ny-1] + rhon*u0/6.;
-		}
-		else if(mode == "ns"){
-			f[4][i][ny-1] = f[2][i][ny-1];
-			f[7][i][ny-1] = f[5][i][ny-1] + 0.5*(f[1][i][ny-1]-f[3][i][ny-1]) - 0.5*rhon*u0; 
-			f[8][i][ny-1] = f[6][i][ny-1] - 0.5*(f[1][i][ny-1]-f[3][i][ny-1]) + 0.5*rhon*u0;
-		}
+		f[4][i][ny-1] = f[2][i][ny-1];
+		f[7][i][ny-1] = f[5][i][ny-1];
+		f[8][i][ny-1] = f[6][i][ny-1];
 	}
 
 	return f;
 }
 
 
+void obstacle(const Boundary& information, vector<vector<vector<double>>>& f){
+
+	unordered_map<string, set<pair<int, int>>> type_to_points = information.type_to_points;
+	const set<pair<int, int>>& internal_points = information.internal_points;
+
+	for(auto& p: type_to_points["w"]){
+		int i = p.first;
+		int j = p.second;
+
+		f[1][i][j] = f[3][i][j];
+		f[5][i][j] = f[7][i][j];
+		f[8][i][j] = f[6][i][j];
+	}
+
+	for(auto& p: type_to_points["e"]){
+		int i = p.first;
+		int j = p.second;
+
+		f[3][i][j] = f[1][i][j];
+		f[7][i][j] = f[5][i][j];
+		f[6][i][j] = f[8][i][j];
+	}
+
+	for(auto& p: type_to_points["n"]){
+		int i = p.first;
+		int j = p.second;
+
+		f[4][i][j] = f[2][i][j];
+		f[7][i][j] = f[5][i][j];
+		f[8][i][j] = f[6][i][j];
+	}
+
+	for(auto& p: type_to_points["s"]){
+		int i = p.first;
+		int j = p.second;
+
+		f[2][i][j] = f[4][i][j];
+		f[5][i][j] = f[7][i][j];
+		f[6][i][j] = f[8][i][j];
+	}
+}
+
 vector<vector<vector<double>>> ruv(
 	int nx, int ny, 
-	const vector<vector<vector<double>>>& f,
+	vector<vector<vector<double>>>& f,
 	vector<vector<double>>& rho,
 	vector<vector<double>>& u, vector<vector<double>>& v,
+	const Boundary& information,
 	int Q){
 
 	for(int j=0; j<ny; ++j)
@@ -160,32 +172,6 @@ vector<vector<vector<double>>> ruv(
 	return {rho, u, v};
 }
 
-void initialize(
-	int nx, int ny, 
-	const vector<vector<double>>& u, const vector<vector<double>>& v,
- 	const vector<double>& cx, const vector<double>& cy, 
- 	vector<vector<vector<double>>>& f, 
- 	vector<vector<vector<double>>>& feq, 
- 	const vector<vector<double>>& rho0, 
- 	const vector<double>& w,
- 	int Q){
-
-	for(int j=0; j<ny; ++j)
-		for(int i=0; i<nx; ++i){
-			double t1 = u[i][j]*u[i][j] + v[i][j]*v[i][j];
-
-
-			for(int k=0; k<Q; ++k){
-				double t2 = u[i][j]*cx[k] + v[i][j]*cy[k];
-
-				// Initialize f to feq	
-				feq[k][i][j] = rho0[i][j]*w[k]*(1. + 3.*t2 + 4.5*t2*t2 - 1.5*t1);
-				f[k][i][j] = feq[k][i][j];
-			}
-		}
-}
-
-
 int main(){
 
 	// Choices for incompressibility, stability, boundary conditions, initialization
@@ -194,14 +180,26 @@ int main(){
 	int M;  // Number of cells
 	int N;
 	double tol;  // normalized error tolerance
-	string mode;  // set to "bb": bounce-back, "ns": no-slip
 
 	u0 = 0.2;
-	alpha = 0.04;
-	M = 200;
-	N = 200;
-	tol = 1e-10;
-	mode = "ns";
+	alpha = 0.2;
+	M = 440;  
+	N = 82;
+	tol = 1e-15;
+
+	float r;  // radius
+	int i0;
+	int j0;
+	float dx;
+
+	r = 0.05; // meters
+	dx = 1./200; // meters
+
+	i0 = 40;
+	j0 = 40;
+
+	// Get information about solid boundary
+	Boundary information = findBoundary(r, dx, i0, j0);
 
 	//////////////////////////////////////////////////////////////////////////////
 
@@ -215,9 +213,8 @@ int main(){
 	int nx = M+1;  // # nodes = (1 + # lattices) 
 	int ny = N+1;  
 
+
 	vector<vector<double>> u(nx, vector<double>(ny, 0));
-	for(int i=1; i<nx-1; ++i)  // lid velocity, initial condition
-		u[i][ny-1] = u0;
 	vector<vector<double>> v(nx, vector<double>(ny, 0));
 	
 	vector<vector<double>> rho(nx, vector<double>(ny, 1)); 
@@ -225,13 +222,13 @@ int main(){
 	vector<vector<vector<double>>> f(Q, vector<vector<double>>(nx, vector<double>(ny)));
 	vector<vector<vector<double>>> feq(Q, vector<vector<double>>(nx, vector<double>(ny)));
 
-
+	double Dl = 2*r/dx;
 	double omega = 1./(3*alpha + 0.5);  // omega = del(t)/tau
-	cout << "Re: " << u0*M/alpha << '\n';
+
+	cout << "Re: " << u0*Dl/alpha << '\n';
 	cout << "Omega: " << omega << '\n';
 	cout << "Ma: " << u0 * pow(3, 0.5) << '\n';\
-	cout << "BC: " << mode << '\n';
-	cout << "Tol: " << tol << '\n';
+	cout << "Tol: " << tol << "\n\n";
 
 	int count = 0;
 	double error = 10.;  // latest del(sum v^2)/(MN)- to determine convergence
@@ -242,9 +239,10 @@ int main(){
 
 		f = collision(nx, ny, u, v, cx, cy, omega, f, feq, rho, w, Q);  // update fi values at each node using LBE
 		f = stream(f);  // spatially shift fi values by ci*del(t)
-		f = boundary(nx, ny, f, u0, mode);  // update values on the boundaries
+		f = boundary(nx, ny, f, u0, rho);  // update values on the boundaries
+		obstacle(information, f);
 
-		auto ruv_result = ruv(nx, ny, f, rho, u, v, Q);  // collect current results
+		auto ruv_result = ruv(nx, ny, f, rho, u, v, information, Q);  // collect current results
 		rho = ruv_result[0];
 		u = ruv_result[1];
 		v = ruv_result[2];
@@ -267,29 +265,42 @@ int main(){
 			cout << count << ' ' << error << '\n';
 	}
 
+	// Zero out points in the solid
+	for(auto& p: information.internal_points){
+		int i = p.first;
+		int j = p.second;
+		u[i][j] = 0;
+		v[i][j] = 0;
+		rho[i][j] = 0;
+	}
+	for(auto& p: information.solid_points){
+		int i = p.first;
+		int j = p.second;
+		u[i][j] = 0;
+		v[i][j] = 0;
+		rho[i][j] = 0;
+	}
+
+
 	// Write to file, plot with Python
 
-	double Ln = 1.;  // width
-	double Hn = N/M;
-	double dxn = Ln/M;
-	
-	vector<double> xn;  // x coordinates of nodes
-	vector<double> yn;
+	vector<double> x;  // normalized x coordinates of nodes
+	vector<double> y;
 
 	for(int i=0; i<nx; ++i)
-		xn.push_back(i*dxn);
+		x.push_back(i*dx);
 
 	for(int j=0; j<ny; ++j)
-		yn.push_back(j*dxn);
+		y.push_back(j*dx);
 
-	writeToFile(xn, "x.txt");
-	writeToFile(yn, "y.txt");
+	writeToFile(x, "./output/x.txt");
+	writeToFile(y, "./output/y.txt");
 
-	writeToFile(u, "u.txt");
-	writeToFile(v, "v.txt");
-	writeToFile(rho, "rho.txt");
+	writeToFile(u, "./output/u.txt");
+	writeToFile(v, "./output/v.txt");
+	writeToFile(rho, "./output/rho.txt");
 
-	writeToFile(errors, "errors.txt");
+	writeToFile(errors, "./output/errors.txt");
 
 	return 0;
 }
