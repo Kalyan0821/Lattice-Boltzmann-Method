@@ -69,11 +69,16 @@ vector<vector<vector<double>>> stream(vector<vector<vector<double>>>& f){
 
 vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<double>>>& f, float u0, const vector<vector<double>>& rho){
 
+	int N = ny-1;
+
 	// West boundary
 	for(int j=1; j<ny-1; ++j){
-		f[1][0][j] = f[3][0][j] + 2.*rho[0][j]*u0/3.;
-		f[5][0][j] = f[7][0][j] - 0.5*(f[2][0][j]-f[4][0][j]) + rho[0][j]*u0/6.;
-		f[8][0][j] = f[6][0][j] + 0.5*(f[2][0][j]-f[4][0][j]) + rho[0][j]*u0/6.;
+
+		double uj = 6*u0*(j)*(N-j)/(N*N);
+
+		f[1][0][j] = f[3][0][j] + 2.*rho[0][j] * uj/3.;
+		f[5][0][j] = f[7][0][j] - 0.5*(f[2][0][j]-f[4][0][j]) + rho[0][j] * uj/6.;
+		f[8][0][j] = f[6][0][j] + 0.5*(f[2][0][j]-f[4][0][j]) + rho[0][j] * uj/6.;
 	}
 	
 	// East boundary
@@ -104,7 +109,7 @@ vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<dou
 }
 
 
-void obstacle(const Boundary& information, vector<vector<vector<double>>>& f){
+void obstacle(const Boundary& information, vector<vector<vector<double>>>& f, vector<vector<double>>& rho, string obstacle_mode){
 
 	unordered_map<string, set<pair<int, int>>> type_to_points = information.type_to_points;
 	const set<pair<int, int>>& internal_points = information.internal_points;
@@ -113,37 +118,66 @@ void obstacle(const Boundary& information, vector<vector<vector<double>>>& f){
 		int i = p.first;
 		int j = p.second;
 
-		f[1][i][j] = f[3][i][j];
-		f[5][i][j] = f[7][i][j];
-		f[8][i][j] = f[6][i][j];
+		if(obstacle_mode=="bb"){
+			f[1][i][j] = f[3][i][j];
+			f[5][i][j] = f[7][i][j];
+			f[8][i][j] = f[6][i][j];
+		}
+		else if(obstacle_mode=="ns"){
+			f[1][i][j] = f[3][i][j];
+			f[5][i][j] = f[7][i][j] - 0.5*(f[2][i][j] - f[4][i][j]);
+			f[8][i][j] = f[6][i][j] + 0.5*(f[2][i][j] - f[4][i][j]);
+		}
 	}
 
 	for(auto& p: type_to_points["e"]){
 		int i = p.first;
 		int j = p.second;
 
-		f[3][i][j] = f[1][i][j];
-		f[7][i][j] = f[5][i][j];
-		f[6][i][j] = f[8][i][j];
-	}
-
-	for(auto& p: type_to_points["n"]){
-		int i = p.first;
-		int j = p.second;
-
-		f[4][i][j] = f[2][i][j];
-		f[7][i][j] = f[5][i][j];
-		f[8][i][j] = f[6][i][j];
+		if(obstacle_mode=="bb"){
+			f[3][i][j] = f[1][i][j];
+			f[7][i][j] = f[5][i][j];
+			f[6][i][j] = f[8][i][j];
+		}
+		else if(obstacle_mode=="ns"){
+			f[3][i][j] = f[1][i][j];
+			f[7][i][j] = f[5][i][j] + 0.5*(f[2][i][j]-f[4][i][j]);
+			f[6][i][j] = f[8][i][j] - 0.5*(f[2][i][j]-f[4][i][j]);			
+		}
 	}
 
 	for(auto& p: type_to_points["s"]){
 		int i = p.first;
 		int j = p.second;
 
-		f[2][i][j] = f[4][i][j];
-		f[5][i][j] = f[7][i][j];
-		f[6][i][j] = f[8][i][j];
+		if(obstacle_mode=="bb"){
+			f[2][i][j] = f[4][i][j];
+			f[5][i][j] = f[7][i][j];
+			f[6][i][j] = f[8][i][j];
+		}
+		else if(obstacle_mode=="ns"){
+			f[2][i][j] = f[4][i][j];
+			f[5][i][j] = f[7][i][j] - 0.5*(f[1][i][j]-f[3][i][j]);
+			f[6][i][j] = f[8][i][j] + 0.5*(f[1][i][j]-f[3][i][j]);			
+		}
 	}
+
+	for(auto& p: type_to_points["n"]){
+		int i = p.first;
+		int j = p.second;
+
+		if(obstacle_mode=="bb"){
+			f[4][i][j] = f[2][i][j];
+			f[7][i][j] = f[5][i][j];
+			f[8][i][j] = f[6][i][j];
+		}
+		else if(obstacle_mode=="ns"){
+			f[4][i][j] = f[2][i][j];
+			f[7][i][j] = f[5][i][j] + 0.5*(f[1][i][j]-f[3][i][j]);
+			f[8][i][j] = f[6][i][j] - 0.5*(f[1][i][j]-f[3][i][j]);		
+		}
+	}
+
 }
 
 vector<vector<vector<double>>> ruv(
@@ -161,13 +195,26 @@ vector<vector<vector<double>>> ruv(
 			for(int k=0; k<Q; ++k)
 				sum += f[k][i][j];
 			rho[i][j] = sum;
-		}
 
-	for(int j=0; j<ny; ++j)
-		for(int i=0; i<nx; ++i){
 			u[i][j] = ((f[1][i][j]+f[5][i][j]+f[8][i][j]) - (f[3][i][j]+f[6][i][j]+f[7][i][j])) / rho[i][j]; 
 			v[i][j] = ((f[2][i][j]+f[5][i][j]+f[6][i][j]) - (f[4][i][j]+f[7][i][j]+f[8][i][j])) / rho[i][j]; 
 		}
+
+	// Zero out internal points
+	for(auto& p: information.internal_points){
+		int i = p.first;
+		int j = p.second;
+		u[i][j] = 0;
+		v[i][j] = 0;
+		rho[i][j] = 0;
+	}
+	// Zero out solid points (required for bb, not required for ns)
+	for(auto& p: information.solid_points){
+		int i = p.first;
+		int j = p.second;
+		u[i][j] = 0;
+		v[i][j] = 0;
+	}
 
 	return {rho, u, v};
 }
@@ -180,23 +227,24 @@ int main(){
 	int M;  // Number of cells
 	int N;
 	double tol;  // normalized error tolerance
+	string obstacle_mode;  // set to "bb": bounce-back, "ns": no-slip (for obstacle boundary) 
 
-	u0 = 0.2;
-	alpha = 0.2;
-	M = 440;  
-	N = 82;
-	tol = 1e-15;
-
-	float r;  // radius
+	float r;  // radius, in meters
+	float dx;  // cell size, in meters
 	int i0;
 	int j0;
-	float dx;
+
+	u0 = 0.15;
+	alpha = 0.375;
+	M = 1100;  
+	N = 205;
+	tol = 1e-15;
+	obstacle_mode = "bb";
 
 	r = 0.05; // meters
-	dx = 1./200; // meters
-
-	i0 = 40;
-	j0 = 40;
+	dx = 1./500; // meters
+	i0 = 100;
+	j0 = 100;
 
 	// Get information about solid boundary
 	Boundary information = findBoundary(r, dx, i0, j0);
@@ -227,7 +275,8 @@ int main(){
 
 	cout << "Re: " << u0*Dl/alpha << '\n';
 	cout << "Omega: " << omega << '\n';
-	cout << "Ma: " << u0 * pow(3, 0.5) << '\n';\
+	cout << "Ma: " << u0 * pow(3, 0.5) << '\n';
+	cout << "BC: " << obstacle_mode << '\n';
 	cout << "Tol: " << tol << "\n\n";
 
 	int count = 0;
@@ -240,7 +289,7 @@ int main(){
 		f = collision(nx, ny, u, v, cx, cy, omega, f, feq, rho, w, Q);  // update fi values at each node using LBE
 		f = stream(f);  // spatially shift fi values by ci*del(t)
 		f = boundary(nx, ny, f, u0, rho);  // update values on the boundaries
-		obstacle(information, f);
+		obstacle(information, f, rho, obstacle_mode);
 
 		auto ruv_result = ruv(nx, ny, f, rho, u, v, information, Q);  // collect current results
 		rho = ruv_result[0];
@@ -264,23 +313,6 @@ int main(){
 		if(count==1 or count%1000==0 or (error<=tol and count >= 50))
 			cout << count << ' ' << error << '\n';
 	}
-
-	// Zero out points in the solid
-	for(auto& p: information.internal_points){
-		int i = p.first;
-		int j = p.second;
-		u[i][j] = 0;
-		v[i][j] = 0;
-		rho[i][j] = 0;
-	}
-	for(auto& p: information.solid_points){
-		int i = p.first;
-		int j = p.second;
-		u[i][j] = 0;
-		v[i][j] = 0;
-		rho[i][j] = 0;
-	}
-
 
 	// Write to file, plot with Python
 

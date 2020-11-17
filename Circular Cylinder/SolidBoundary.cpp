@@ -203,7 +203,7 @@ void writeToFile(const set<pair<int, int>> solid_points, string name){
 
 // int main(){
 
-// 	Boundary information = findBoundary(0.05, 1./200, 40, 40);
+// 	Boundary information = findBoundary(0.05, 1./500, 100, 100);
 // 	writeToFile(information.solid_points, "./output/solid_points.txt");
 // 	writeToFile(information.internal_points, "./output/internal_points.txt");
 // 	return 0;
