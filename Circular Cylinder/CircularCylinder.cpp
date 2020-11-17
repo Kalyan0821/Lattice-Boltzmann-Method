@@ -235,7 +235,7 @@ int main(){
 	int j0;
 
 	u0 = 0.15;
-	alpha = 0.375;
+	alpha = 1.5;
 	M = 1100;  
 	N = 205;
 	tol = 1e-15;
