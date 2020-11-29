@@ -235,11 +235,16 @@ int main(){
 	int j0;
 
 	u0 = 0.15;
-	alpha = 1.5;
+	alpha = 0.375;
 	M = 1100;  
 	N = 205;
 	tol = 1e-15;
-	obstacle_mode = "bb";
+	obstacle_mode = "ns";
+
+
+	// tol = 5e-6;	
+
+	
 
 	r = 0.05; // meters
 	dx = 1./500; // meters
