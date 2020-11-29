@@ -7,13 +7,16 @@
 #include<numeric>
 #include<algorithm>
 #include<string>
+#include<omp.h>
 using namespace std;
+
+#define PARALLELIZE
 
 
 void writeToFile(const vector<double>& array, string name);
 void writeToFile(const vector<vector<double>>& array, string name);
 
-vector<vector<vector<double>>> collision(
+void collision(
 	int nx, int ny, 
 	const vector<vector<double>>& u, const vector<vector<double>>& v,
  	const vector<double>& cx, const vector<double>& cy, 
@@ -24,11 +27,13 @@ vector<vector<vector<double>>> collision(
  	const vector<double>& w,
  	int Q){
 
+	#ifdef PARALLELIZE
+	#pragma omp parallel for collapse(2)
+	#endif
 	for(int j=0; j<ny; ++j)
 		for(int i=0; i<nx; ++i){
 			double t1 = u[i][j]*u[i][j] + v[i][j]*v[i][j];
-
-
+			
 			for(int k=0; k<Q; ++k){
 				double t2 = u[i][j]*cx[k] + v[i][j]*cy[k];
 
@@ -37,7 +42,6 @@ vector<vector<vector<double>>> collision(
 				f[k][i][j] = (1.-omega)*f[k][i][j] + omega*feq[k][i][j];
 			}
 		}
-	return f;
 }
 
 void circShift2D(vector<vector<double>>& a, int s0, int s1){
@@ -47,7 +51,8 @@ void circShift2D(vector<vector<double>>& a, int s0, int s1){
 	else
 		rotate(begin(a), begin(a)-s0, end(a));
 
-	for(auto& r: a){
+
+	for(vector<double> r: a){
 		if(s1>0)
 			rotate(begin(r), end(r)-s1, end(r));  // Shift columns by s1 steps to the right
 		else
@@ -55,7 +60,7 @@ void circShift2D(vector<vector<double>>& a, int s0, int s1){
 	}
 }
 
-vector<vector<vector<double>>> stream(vector<vector<vector<double>>>& f){
+void stream(vector<vector<vector<double>>>& f){
 	circShift2D(f[1], 1, 0);
 	circShift2D(f[2], 0, 1);
 	circShift2D(f[3], -1, 0);
@@ -64,17 +69,19 @@ vector<vector<vector<double>>> stream(vector<vector<vector<double>>>& f){
 	circShift2D(f[6], -1, 1);
 	circShift2D(f[7], -1, -1);
 	circShift2D(f[8], 1, -1);
-	return f;
 }
 
-vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<double>>>& f, float u0, const vector<vector<double>>& rho){
+void boundary(int nx, int ny, vector<vector<vector<double>>>& f, float u0l, const vector<vector<double>>& rho){
 
 	int N = ny-1;
 
 	// West boundary
+	#ifdef PARALLELIZE
+	#pragma omp parallel for
+	#endif	
 	for(int j=1; j<ny-1; ++j){
 
-		double uj = 6*u0*(j)*(N-j)/(N*N);
+		double uj = 6*u0l*(j)*(N-j)/(N*N);
 
 		f[1][0][j] = f[3][0][j] + 2.*rho[0][j] * uj/3.;
 		f[5][0][j] = f[7][0][j] - 0.5*(f[2][0][j]-f[4][0][j]) + rho[0][j] * uj/6.;
@@ -82,6 +89,9 @@ vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<dou
 	}
 	
 	// East boundary
+	#ifdef PARALLELIZE
+	#pragma omp parallel for
+	#endif		
 	for(int j=0; j<ny; ++j){
 
 		f[3][nx-1][j] = f[3][nx-2][j];
@@ -90,6 +100,9 @@ vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<dou
 	}
 
 	// South boundary
+	#ifdef PARALLELIZE
+	#pragma omp parallel for
+	#endif	
 	for(int i=0; i<nx; ++i){
 
 		f[2][i][0] = f[4][i][0];
@@ -98,14 +111,15 @@ vector<vector<vector<double>>> boundary(int nx, int ny, vector<vector<vector<dou
 	}
 
 	// North boundary
+	#ifdef PARALLELIZE
+	#pragma omp parallel for
+	#endif	
 	for(int i=0; i<nx; ++i){
 
 		f[4][i][ny-1] = f[2][i][ny-1];
 		f[7][i][ny-1] = f[5][i][ny-1];
 		f[8][i][ny-1] = f[6][i][ny-1];
 	}
-
-	return f;
 }
 
 
@@ -188,6 +202,9 @@ vector<vector<vector<double>>> ruv(
 	const Boundary& information,
 	int Q){
 
+	#ifdef PARALLELIZE
+	#pragma omp parallel for collapse(2)
+	#endif
 	for(int j=0; j<ny; ++j)
 		for(int i=0; i<nx; ++i){
 
@@ -222,8 +239,8 @@ vector<vector<vector<double>>> ruv(
 int main(){
 
 	// Choices for incompressibility, stability, boundary conditions, initialization
-	double u0; // U0/c
-	double alpha;  // Non-dimensional Kinematic viscosity
+	double u0l; // U0/c
+	double nul;  // Non-dimensional Kinematic viscosity
 	int M;  // Number of cells
 	int N;
 	double tol;  // normalized error tolerance
@@ -234,22 +251,18 @@ int main(){
 	int i0;
 	int j0;
 
-	u0 = 0.15;
-	alpha = 0.375;
-	M = 1100;  
-	N = 205;
+	u0l = 0.15;
+	nul = 0.15;
+	M = 10000;  
+	N = 10000;
 	tol = 1e-15;
-	obstacle_mode = "ns";
+	obstacle_mode = "bb";
 
-
-	// tol = 5e-6;	
-
-	
 
 	r = 0.05; // meters
-	dx = 1./500; // meters
-	i0 = 100;
-	j0 = 100;
+	dx = 1./10000; // meters
+	i0 = 5000;
+	j0 = 5000;
 
 	// Get information about solid boundary
 	Boundary information = findBoundary(r, dx, i0, j0);
@@ -269,6 +282,8 @@ int main(){
 
 	vector<vector<double>> u(nx, vector<double>(ny, 0));
 	vector<vector<double>> v(nx, vector<double>(ny, 0));
+
+
 	
 	vector<vector<double>> rho(nx, vector<double>(ny, 1)); 
 
@@ -276,11 +291,11 @@ int main(){
 	vector<vector<vector<double>>> feq(Q, vector<vector<double>>(nx, vector<double>(ny)));
 
 	double Dl = 2*r/dx;
-	double omega = 1./(3*alpha + 0.5);  // omega = del(t)/tau
+	double omega = 1./(3*nul + 0.5);  // omega = del(t)/tau
 
-	cout << "Re: " << u0*Dl/alpha << '\n';
+	cout << "Re: " << u0l*Dl/nul << '\n';
 	cout << "Omega: " << omega << '\n';
-	cout << "Ma: " << u0 * pow(3, 0.5) << '\n';
+	cout << "Ma: " << u0l * pow(3, 0.5) << '\n';
 	cout << "BC: " << obstacle_mode << '\n';
 	cout << "Tol: " << tol << "\n\n";
 
@@ -291,9 +306,12 @@ int main(){
 
 	while(error>tol or count<50){
 
-		f = collision(nx, ny, u, v, cx, cy, omega, f, feq, rho, w, Q);  // update fi values at each node using LBE
-		f = stream(f);  // spatially shift fi values by ci*del(t)
-		f = boundary(nx, ny, f, u0, rho);  // update values on the boundaries
+cout << "C0" << ' ';
+		collision(nx, ny, u, v, cx, cy, omega, f, feq, rho, w, Q);  // update fi values at each node using LBE
+cout << "C1" << ' ';
+
+		stream(f);  // spatially shift fi values by ci*del(t)
+		boundary(nx, ny, f, u0l, rho);  // update values on the boundaries
 		obstacle(information, f, rho, obstacle_mode);
 
 		auto ruv_result = ruv(nx, ny, f, rho, u, v, information, Q);  // collect current results
@@ -315,7 +333,7 @@ int main(){
 
 		errors.push_back(error);
 
-		if(count==1 or count%1000==0 or (error<=tol and count >= 50))
+		if(count==1 or count%1==0 or (error<=tol and count >= 50))
 			cout << count << ' ' << error << '\n';
 	}
 
