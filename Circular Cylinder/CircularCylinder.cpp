@@ -1,6 +1,6 @@
 // To compile and run:
 // g++ -std=c++17 -fopenmp CircularCylinder.cpp StairBoundary.cpp CurvedBoundary.cpp -o outP
-// ./outP
+// ./outP u0 N0 nul obstacle_mode curved_scheme
 
 
 #include "StairBoundary.h"
@@ -14,6 +14,7 @@
 #include <numeric>
 #include <algorithm>
 #include <string>
+#include <sstream>
 #include <omp.h>
 using namespace std;
 
@@ -301,14 +302,7 @@ vector<vector<vector<double>>> ruv(
 	return {rho, u, v};
 }
 
-int main(){
-
-	// Given specifications (in meters)
-	double H = 0.41;  
-	double L = 2.2;   
-	double D = 0.1;   
-	double x0 = 0.2;  
-	double y0 = 0.2;  
+int main(int argc, char* argv[]){
 
 	// Incompressibility, stability, convergence
 	double u0;   // U0/c
@@ -320,15 +314,19 @@ int main(){
 	string obstacle_mode;  // set to "bb": bounce-back, "ns": no-slip (for obstacle boundary), "curved": curved
 	int curved_scheme;  // set to 1 or 2 for "curved" obstacle modes
 
-	// Choices
-	u0 = 0.15;
-	N0 = 50;
-	nul = 1.5;
-	obstacle_mode = "curved";
-	curved_scheme = 1;
-	
-	tol = 1e-15;  
+	// Decode command-line arguments
+	istringstream iss1(argv[1]); iss1 >> u0;
+	istringstream iss2(argv[2]); iss2 >> N0;
+	istringstream iss3(argv[3]); iss3 >> nul;
+	istringstream iss4(argv[4]); iss4 >> obstacle_mode;
+	istringstream iss5(argv[5]); iss5 >> curved_scheme;
 
+	// Given specifications (in meters)
+	double H = 0.41;  
+	double L = 2.2;   
+	double D = 0.1;   
+	double x0 = 0.2;  
+	double y0 = 0.2; 
 
 	double r = D/2.;  // radius, in meters
 	double dx = D/N0;  // cell size, in meters
@@ -338,6 +336,7 @@ int main(){
 	int j0 = y0/dx;
 	double omega = 1./(3*nul + 0.5);  // omega = del(t)/tau
 
+	tol = 1e-15;  
 
 	Boundary information = findStairBoundary(r, dx, i0, j0);
 	vector<SurroundingPoint> surrounding_points = getSurroundingPoints(r, dx, i0, j0);
@@ -426,15 +425,24 @@ int main(){
 		y.push_back(j*dx);
 
 
-	string s = "";
-	if(obstacle_mode=="curved")
-		s = "_curved";
-	writeToFile(x, "./output"+s+"/x.txt");
-	writeToFile(y, "./output"+s+"/y.txt");
-	writeToFile(u, "./output"+s+"/u.txt");
-	writeToFile(v, "./output"+s+"/v.txt");
-	writeToFile(rho, "./output"+s+"/rho.txt");
-	writeToFile(errors, "./output"+s+"/errors.txt");
+	ostringstream oss;
+    oss << "./output-Re{" << u0*N0/nul << "}_u{" << u0 << "}_N0{" << N0 << "}_nu{" << nul << "}_";
+    string path = oss.str();
+
+    if(obstacle_mode != "curved")
+            path = path + obstacle_mode;
+    else if(curved_scheme == 1)
+            path = path + "C1";
+    else if(curved_scheme == 2)
+            path = path + "C2";
+
+
+	writeToFile(x, path+"/x.txt");
+	writeToFile(y, path+"/y.txt");
+	writeToFile(u, path+"/u.txt");
+	writeToFile(v, path+"/v.txt");
+	writeToFile(rho, path+"/rho.txt");
+	writeToFile(errors, path+"/errors.txt");
 
 	return 0;
 }

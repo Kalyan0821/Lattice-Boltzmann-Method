@@ -133,7 +133,7 @@ vector<SurroundingPoint> getSurroundingPoints(double r, double dx, int i0, int j
 	return surrounding_points;
 }
 
-void writeToFile(const vector<SurroundingPoint>& surrounding_points, string nameF, string nameB, string nameFF, string name_delta){
+void writePointsToFile(const vector<SurroundingPoint>& surrounding_points, string nameF, string nameB, string nameFF, string name_delta){
 	ofstream outF(nameF);
 	ofstream outB(nameB);
 	ofstream outFF(nameFF);
@@ -150,8 +150,8 @@ void writeToFile(const vector<SurroundingPoint>& surrounding_points, string name
 
 
 // int main(){
-// 	vector<SurroundingPoint> surrounding_points = getSurroundingPoints(0.05, 1./500, 100, 100);
-// 	writeToFile(surrounding_points, "./notebooks/F.txt", "./notebooks/B.txt", "./notebooks/FF.txt", "./notebooks/delta.txt");
+// 	vector<SurroundingPoint> surrounding_points = getSurroundingPoints(0.05, 1./1000, 200, 200);
+// 	writePointsToFile(surrounding_points, "./notebooks/F.txt", "./notebooks/B.txt", "./notebooks/FF.txt", "./notebooks/delta.txt");
 // 	return 0;
 // }
 
